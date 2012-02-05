@@ -38,11 +38,20 @@ are strings, whereas the latter is ``set``-like::
         print "Options: %s" % ", ".join(fs.options)
         fs.options -= set(['user_xattr'])
 
+To update the on-disk filesystem table, call ``save()``::
+
+    with FilesystemTable() as fstab:
+        for fs in fstab:
+            if fs.fstype in ('ext3', 'ext4'):
+                fs.options.add('user_xattr')
+        fstab.save()
+
 
 Limitations
 -----------
 
-It is not yet possible to add or remove entries.
+It is not yet possible to add or remove entries. This has not been thoroughly
+tested when run by non-privileged users.
 
 
 Feedback
