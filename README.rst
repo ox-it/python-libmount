@@ -56,3 +56,7 @@ tested when run by non-privileged users.
 
 Feedback
 --------
+
+Feedback is gratefully received to `infodev@oucs.ox.ac.uk <mailto:infodev@oucs.ox.ac.uk>`_,
+or as an issue in `the issue tracker <https://github.com/oucs/python-libmount/issues>`_.
+
