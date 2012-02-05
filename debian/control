@@ -13,4 +13,6 @@ Architecture: all
 Depends: ${misc:Depends},
          ${python:Depends},
          libmount
-Description: A Pythonic wrapper around libmount using ctypes.
+Description: Pythonic wrapper around libmount using ctypes.
+ Depends on libmount, and provides a libmount Python package containing
+ a FilesystemTable object.
