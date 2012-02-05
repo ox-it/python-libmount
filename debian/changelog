@@ -1,0 +1,5 @@
+python-libmount (0.9) unstable; urgency=low
+
+  * Initial release.
+
+ -- Alexander Dutton <alexander.dutton@oucs.ox.ac.uk>  Sun, 05 Feb 2012 18:24:17 +0000

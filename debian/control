@@ -1,0 +1,16 @@
+Source: python-libmount
+Section: python
+Priority: extra
+Maintainer: Alexander Dutton <alexander.dutton@oucs.ox.ac.uk>
+Build-Depends: debhelper (>= 7.0.50~),
+               python-all,
+               python-support
+Standards-Version: 3.8.4
+Homepage: https://github.com/oucs/python-libmount
+
+Package: python-libmount
+Architecture: all
+Depends: ${misc:Depends},
+         ${python:Depends},
+         libmount
+Description: A Pythonic wrapper around libmount using ctypes.
