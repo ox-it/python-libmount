@@ -1,7 +1,17 @@
 import ctypes
 import functools
 
-_libmount = ctypes.cdll.LoadLibrary("libmount.so")
+__all__ = ['FilesystemTable']
+
+libnames = ('libmount.so', 'libmount.so.1')
+for libname in libnames:
+    try:
+        _libmount = ctypes.cdll.LoadLibrary(libname)
+    except OSError:
+        continue
+    break
+else:
+    raise ImportError("Could not find libmount shared object. Is libmount installed?")
 
 class FilesystemTable(list):
     class Options(set):
@@ -29,47 +39,62 @@ class FilesystemTable(list):
             self._fs = _libmount.mnt_new_fs()
             self.source, self.target, self.fstype = source, target, fstype
             self._in_table = False
-        
+
         def __del__(self):
             if not self._in_table:
                 _libmount.mnt_free_fs(self._fs)
-        
+
         @classmethod
         def _from_existing(cls, fs):
             self = super(cls, cls).__new__(cls)
             self._fs = fs
             self._in_table = True
+            self._editable = True
+
+            # Cache properties
+            self.source, self.target, self.fstype, self.options
+
             return self
-            
-        def _fs_attrib(get_name, set_name):
+        
+        def mutable_check(self):
+            if self._fs is None:
+                raise IOError("This Filesystem is now immutable as the underlying table has been closed.")
+
+        def _fs_attrib(cache_name, get_name, set_name):
             def _get(self):
-                return ctypes.string_at(getattr(_libmount, get_name)(self._fs))
+                if not hasattr(self, cache_name):
+                    self.mutable_check()
+                    setattr(self, cache_name, ctypes.string_at(getattr(_libmount, get_name)(self._fs)))
+                return getattr(self, cache_name)
             def _set(self, value):
+                self.mutable_check()
+                setattr(self, cache_name, value)
                 getattr(_libmount, set_name)(ctypes.c_char_p(value))
             return property(_get, _set)
-        source = _fs_attrib('mnt_fs_get_source', 'mnt_fs_set_source')
-        target = _fs_attrib('mnt_fs_get_target', 'mnt_fs_set_target')
-        fstype = _fs_attrib('mnt_fs_get_fstype', 'mnt_fs_set_fstype')
+        source = _fs_attrib('_source', 'mnt_fs_get_source', 'mnt_fs_set_source')
+        target = _fs_attrib('_target', 'mnt_fs_get_target', 'mnt_fs_set_target')
+        fstype = _fs_attrib('_fstype', 'mnt_fs_get_fstype', 'mnt_fs_set_fstype')
         del _fs_attrib
-        
+
         def _get_options(self):
             if not hasattr(self, '_options'):
+                self.mutable_check()
                 self._options = FilesystemTable.Options(self._fs)
             return self._options
         def _set_options(self, value):
+            self.mutable_check()
             value = ctypes.c_char_p(value) if value else 0
             _libmount.mnt_fs_set_fs_options(self._fs, value)
             del self._options
-            
         options = property(_get_options)
-        
+
         def __unicode__(self):
             return "%s on %s type %s (%s)" % (self.source,
                                               self.target,
                                               self.fstype,
                                               ','.join(self.options))
         __repr__ = __unicode__
-        
+
         def as_dict(self):
             return {'source': self.source,
                     'target': self.target,
@@ -78,23 +103,37 @@ class FilesystemTable(list):
 
     DEFAULT_FILENAME = '/etc/fstab'
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, readonly=False):
         self._table, self._lock = None, None
         self._filename = filename or self.DEFAULT_FILENAME
+        self._depth = 0 # To handle multiply-nested with blocks
+
+        if readonly:
+            with self: pass
 
     def __enter__(self):
-        self._lock = _libmount.mnt_new_lock(0, 0)
-        self._table = _libmount.mnt_new_table_from_file(self._filename)
-        if not _libmount.mnt_table_parse_file(self._table):
-            raise Exception("Could not parse %s" % self.filename)
-        self._get_fss()
+        if not self._depth:
+            self._lock = _libmount.mnt_new_lock(0, 0)
+            self._table = _libmount.mnt_new_table_from_file(self._filename)
+            if not _libmount.mnt_table_parse_file(self._table):
+                raise Exception("Could not parse %s" % self.filename)
+            self._get_fss()
+        self._depth += 1
         return self
 
     def __exit__(self,exc_type, exc_value, traceback):
-        _libmount.mnt_free_table(self._table)
-        _libmount.mnt_free_lock(self._lock)
-        self._table, self._lock = None, None
-    
+        self._depth -= 1
+        if not self._depth:
+            _libmount.mnt_free_table(self._table)
+            _libmount.mnt_free_lock(self._lock)
+            self._table, self._lock = None, None
+
+            # The entries in the table will have been freed by the above call to
+            # mnt_free_table. If we don't do this and someone tries to modify the
+            # filesystem, segfaults might ensue.
+            for fs in self:
+                fs._fs = None
+
     def _get_fss(self):
         fs, mnt_iter = ctypes.c_void_p(), _libmount.mnt_new_iter()
         try:
@@ -102,6 +141,10 @@ class FilesystemTable(list):
                 self.append(self.Filesystem._from_existing(fs.value))
         finally:
             _libmount.mnt_free_iter(mnt_iter)
-    
+
+    def as_list(self):
+        with self:
+            return list(self)
+
     def save(self):
         _libmount.mnt_table_update_file(self._table)
