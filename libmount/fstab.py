@@ -1,5 +1,6 @@
 import ctypes
 import functools
+import os
 
 __all__ = ['FilesystemTable']
 
@@ -141,6 +142,24 @@ class FilesystemTable(list):
                 self.append(self.Filesystem._from_existing(fs.value))
         finally:
             _libmount.mnt_free_iter(mnt_iter)
+
+    def find_fs_containing(self, path):
+        match = None
+        for fs in self:
+            if not os.path.relpath(path, fs.target).startswith('..'):
+                if not match or len(fs.target) > len(match.target):
+                    match = fs
+        return match
+    def find_source(self, source):
+        for fs in self:
+            if fs.source == source:
+                return fs
+        raise ValueError("Could not find filesystem with source '%s'" % source)
+    def find_target(self, target):
+        for fs in self:
+            if fs.target == target:
+                return fs
+        raise ValueError("Could not find filesystem with target '%s'" % target)
 
     def as_list(self):
         with self:
