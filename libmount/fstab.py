@@ -65,7 +65,8 @@ class FilesystemTable(list):
             def _get(self):
                 if not hasattr(self, cache_name):
                     self.mutable_check()
-                    setattr(self, cache_name, ctypes.string_at(getattr(_libmount, get_name)(self._fs)))
+                    addr = getattr(_libmount, get_name)(self._fs)
+                    setattr(self, cache_name, ctypes.string_at(addr) if addr else None)
                 return getattr(self, cache_name)
             def _set(self, value):
                 self.mutable_check()
