@@ -85,10 +85,10 @@ class FilesystemTable(list):
             return self._options
         def _set_options(self, value):
             self.mutable_check()
-            value = ctypes.c_char_p(value) if value else 0
-            _libmount.mnt_fs_set_fs_options(self._fs, value)
+            value = ctypes.c_char_p(','.join(value)) if value else 0
+            _libmount.mnt_fs_set_options(self._fs, value)
             del self._options
-        options = property(_get_options)
+        options = property(_get_options, _set_options)
 
         def __unicode__(self):
             return "%s on %s type %s (%s)" % (self.source,
