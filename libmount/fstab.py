@@ -30,7 +30,7 @@ class FilesystemTable(list):
                 def f(*args, **kwargs):
                     retvalue = attr(*args, **kwargs)
                     new_value = ctypes.c_char_p(','.join(self)) if self else 0
-                    _libmount.mnt_fs_set_fs_options(self._fs, new_value)
+                    _libmount.mnt_fs_set_options(self._fs, new_value)
                     return retvalue
                 return f
             return attr
